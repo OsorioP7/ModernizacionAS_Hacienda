@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Bib_Hacienda.Eventos;
+using Bib_Hacienda.Interfaces;
 using Bib_Hacienda.Reglas;
 
 namespace Bib_Hacienda.Clases
@@ -17,23 +17,22 @@ namespace Bib_Hacienda.Clases
         public enum l_tipos_potreros {ternero, novillo, cebon};
         private string identificacion;
         private List<Res> l_reses = new List<Res>();
-        private l_tipos_potreros tipo_potrero;
+        private readonly IReglasTipoPotrero reglas_tipo_potrero;
 
-        //Eventos
-        // no cumple
-        private PublisherPotreroMitad publisher_potrero_mitad = new PublisherPotreroMitad();
-        private PublisherPotreroLleno publisher_potrero_lleno = new PublisherPotreroLleno();
-        private PublisherPesoVenta publisher_peso_venta = new PublisherPesoVenta();
-        private PublisherPesoMin publisher_peso_min = new PublisherPesoMin();
+        private readonly INotificacionIncorporacionRes notificacion_incorporacion;
 
         //EventHandler
         internal void EventHandler() { }
 
         //Constructor
-        public Potrero(string identificacion, l_tipos_potreros tipo_potrero)
+        public Potrero(
+            string identificacion,
+            IReglasTipoPotrero reglas_tipo_potrero,
+            INotificacionIncorporacionRes notificacion_incorporacion)
         {
             this.Identificacion = identificacion;
-            this.tipo_potrero = tipo_potrero;
+            this.reglas_tipo_potrero = reglas_tipo_potrero;
+            this.notificacion_incorporacion = notificacion_incorporacion;
 
         }
 
@@ -48,12 +47,7 @@ namespace Bib_Hacienda.Clases
                     throw new ArgumentException("El nombre de la res no puede estar vacío", nameof(nombre));
                 }
 
-                //variables locales
-                byte edad_min_potrero = 0;
-                byte edad_max_potrero = 255;
-                string tipo_vaca = "";
                 ushort cantidad_reses;
-                Res res = null;
 
                 if (l_reses.Count() == ReglaPotrero.max_reses_potrero)
                 {
@@ -62,83 +56,17 @@ namespace Bib_Hacienda.Clases
                 }
                 else
                 {
-                    switch (tipo_potrero)
-                    {
+                    reglas_tipo_potrero.ValidarEdad(edad, this.identificacion);
+                    Res res = reglas_tipo_potrero.CrearRes(nombre, peso, edad);
+                    l_reses.Add(res);
 
-                        //Definir rangos de edad segun el tipo de potrero
-                        case l_tipos_potreros.ternero:
-                            edad_max_potrero = ReglaRes.edad_max_ternero; // 12
-                            tipo_vaca = "ternero";
-                            break;
-                        
-                        case l_tipos_potreros.cebon:
-                            edad_min_potrero = ReglaRes.edad_max_ternero;
-                            edad_min_potrero++; // 13
-                            edad_max_potrero = ReglaRes.edad_max_cebon; // 48
-                            tipo_vaca = "cebon";
-                            break;
-                        
-                        case l_tipos_potreros.novillo:
-                            edad_min_potrero = ReglaRes.edad_max_cebon;
-                            edad_min_potrero++; // 49
-                            tipo_vaca = "novillo";
-                            break;
-                    }
+                    //Cuenta las reses actuales en el potrero
+                    cantidad_reses = (ushort)L_reses.Count();
 
-                    //Validar que la edad de la res esté dentro del rango permitido para el potrero
-                    if (edad >= edad_min_potrero && edad <= edad_max_potrero)
-                    {
-                        switch (tipo_vaca)
-                        {
-                            case "ternero":
-                                res = new Ternero(nombre, peso, edad);
-                                l_reses.Add(res);
-                                break;
-                            case "cebon":
-                                res = new Cebon(nombre, peso, edad);
-                                l_reses.Add(res);
-                                break;
-                            case "novillo":
-                                res = new Novillo(nombre, peso, edad);
-                                l_reses.Add(res);
-                                break;
-                        }
-
-                        //Cuenta las reses actuales en el potrero
-                        cantidad_reses = (ushort)L_reses.Count();
-
-                        string mensajes_eventos = "";
-
-                        //Suscribirse a los eventos ANTES de dispararlos
-                        publisher_peso_venta.evt_peso_venta += mensaje =>
-                        {
-                            if (!string.IsNullOrEmpty(mensaje))
-                                mensajes_eventos += mensaje + "\n";
-                        };
-
-                        publisher_peso_min.evt_peso_min += mensaje =>
-                        {
-                            if (!string.IsNullOrEmpty(mensaje))
-                                mensajes_eventos += mensaje + "\n";
-                        };
-
-                        publisher_potrero_mitad.evt_potrero_mitad += mensaje =>
-                        {
-                            if (!string.IsNullOrEmpty(mensaje))
-                                mensajes_eventos += mensaje + "\n";
-                        };
-
-                        publisher_potrero_lleno.evt_potrero_lleno += mensaje =>
-                        {
-                            if (!string.IsNullOrEmpty(mensaje))
-                            mensajes_eventos += mensaje + "\n";
-                        };
-
-                        //AHORA SÍ disparar los eventos (después de suscribnos)
-                        publisher_potrero_mitad.Informar_Potrero_Mitad(cantidad_reses, this);
-                        publisher_potrero_lleno.Informar_Potrero_Lleno(cantidad_reses, this);
-                        publisher_peso_min.Informar_Peso_Min(res);
-                        publisher_peso_venta.Informar_Peso_Venta(res);
+                        string mensajes_eventos = notificacion_incorporacion.ObtenerMensajes(
+                            this,
+                            res,
+                            cantidad_reses);
                        
                         //Construir mensaje de retorno
                         string mensaje_final = $"La res {nombre} ha sido añadida al potrero {this.identificacion} con exito.";
@@ -147,13 +75,7 @@ namespace Bib_Hacienda.Clases
                             mensaje_final += "\n" + mensajes_eventos.TrimEnd();
                         }
 
-                        return mensaje_final;
-
-                    }
-                    else
-                    {
-                        throw new Exception($"La res no puede ser añadida al potrero {this.identificacion} porque su edad no corresponde al tipo de potrero");
-                    }
+                    return mensaje_final;
                 }
             }
             catch (Exception ex)
@@ -203,7 +125,7 @@ namespace Bib_Hacienda.Clases
         //Accesores
         public List<Res> L_reses { get => l_reses; set => l_reses = value; }
         public string Identificacion { get => identificacion; set => identificacion = value; }
-        public l_tipos_potreros Tipo_potrero { get => tipo_potrero; set => tipo_potrero = value; }
+        public string Tipo_potrero => reglas_tipo_potrero.TipoPotrero;
 
     }
 }

@@ -1,5 +1,6 @@
-锘縰sing Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Bib_Hacienda.Clases;
+using Bib_Hacienda.Interfaces;
 using p_mvcHacienda.Servicios;
 using static Bib_Hacienda.Clases.Potrero;
 
@@ -9,15 +10,15 @@ namespace p_mvcHacienda.Controllers
     {
         //Atributos
         private readonly PotreroService _potreroService;
-        private readonly Hacienda _hacienda;
-        private readonly PersistenciaService _persistencia;
+        private readonly IConsultaPotreros _consultaPotreros;
+        private readonly EstadisticasPotreros _estadisticasPotreros;
 
-        //Inyecci贸n de dependencias del servicio
-        public PotreroController(PotreroService potreroService, Hacienda hacienda, PersistenciaService persistencia)
+        //Inyecci髇 de dependencias del servicio
+        public PotreroController(PotreroService potreroService, IConsultaPotreros consultaPotreros, EstadisticasPotreros estadisticasPotreros)
         {
             _potreroService = potreroService;
-            _hacienda = hacienda;
-            _persistencia = persistencia;
+            _consultaPotreros = consultaPotreros;
+            _estadisticasPotreros = estadisticasPotreros;
         }
 
         // GET
@@ -26,8 +27,8 @@ namespace p_mvcHacienda.Controllers
         //Mostrar la lista de potreros y estadisticas
         public ActionResult Index()
         {
-            var potreros = _potreroService.ObtenerTodosLosPotreros();
-            var estadisticas = _potreroService.ObtenerEstadisticas();
+            var potreros = _consultaPotreros.ObtenerTodosLosPotreros();
+            var estadisticas = _estadisticasPotreros.ObtenerEstadisticas();
       
             ViewBag.Estadisticas = estadisticas;
 
@@ -35,7 +36,7 @@ namespace p_mvcHacienda.Controllers
         }
 
         
-        // GET: Potrero/Create - Mostrar formulario de creaci贸n
+        // GET: Potrero/Create - Mostrar formulario de creaci髇
         public ActionResult Create()
         {
             return View();
@@ -44,7 +45,7 @@ namespace p_mvcHacienda.Controllers
         //Detalles de un potrero
         public ActionResult Details(string id)
         {
-            var potrero = _potreroService.ObtenerPotreroPorIdentificacion(id);
+            var potrero = _consultaPotreros.ObtenerPotreroPorIdentificacion(id);
 
             if (potrero == null)
             {
@@ -59,7 +60,7 @@ namespace p_mvcHacienda.Controllers
         // POST:
         [HttpPost]
 
-        // Procesar creaci贸n de potrero
+        // Procesar creaci髇 de potrero
         public ActionResult Create(string identificacion, l_tipos_potreros tipo)
         {
             try
@@ -67,18 +68,16 @@ namespace p_mvcHacienda.Controllers
                 // Validar entrada
                 if (string.IsNullOrWhiteSpace(identificacion))
                 {
-                    ViewBag.Mensaje = "La identificaci贸n no puede estar vac铆a";
+                    ViewBag.Mensaje = "La identificaci髇 no puede estar vac韆";
                     ViewBag.TipoMensaje = "danger";
                     return View();
                 }
 
                 // Llamar al servicio para crear potrero (persiste internamente)
-                string exitoso = _potreroService.CrearPotrero(identificacion, tipo);
+                string exitoso = _potreroService.CrearPotrero(identificacion, tipo.ToString());
                 
-                // Guardar expl铆citamente por seguridad
-                _persistencia.GuardarPotreros(_hacienda.L_potreros);
 
-                // Si es exitoso, redirigir con mensaje de 茅xito
+                // Si es exitoso, redirigir con mensaje de 閤ito
                 TempData["Mensaje"] = exitoso;
                 TempData["TipoMensaje"] = "success";
                 return RedirectToAction(nameof(Index));

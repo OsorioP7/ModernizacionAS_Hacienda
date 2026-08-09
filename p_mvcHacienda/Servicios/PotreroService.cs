@@ -1,40 +1,72 @@
-﻿using Bib_Hacienda.Clases;
-using static Bib_Hacienda.Clases.Potrero;
+using Bib_Hacienda.Clases;
+using Bib_Hacienda.Interfaces;
 
 namespace p_mvcHacienda.Servicios
 {
     public class PotreroService
     {
-        // Atributos
-        private readonly Hacienda _hacienda;
-        private readonly PersistenciaService _persistencia;
+        private readonly IConsultaPotreros _consultaPotreros;
+        private readonly IRegistroPotrero _registroPotrero;
+        private readonly ITiposPotreroDisponibles _tiposPotrero;
+        private readonly IActualizacionPotreros _actualizacionPotreros;
+        private readonly IActualizacionReses _actualizacionReses;
+        private readonly INotificacionIncorporacionRes _notificacionIncorporacion;
 
-        // Constructor
-        public PotreroService(Hacienda hacienda, PersistenciaService persistencia)
+        public PotreroService(
+            IConsultaPotreros consultaPotreros,
+            IRegistroPotrero registroPotrero,
+            ITiposPotreroDisponibles tiposPotrero,
+            IActualizacionPotreros actualizacionPotreros,
+            IActualizacionReses actualizacionReses,
+            INotificacionIncorporacionRes notificacionIncorporacion)
         {
-            _hacienda = hacienda;
-            _persistencia = persistencia;
+            _consultaPotreros = consultaPotreros;
+            _registroPotrero = registroPotrero;
+            _tiposPotrero = tiposPotrero;
+            _actualizacionPotreros = actualizacionPotreros;
+            _actualizacionReses = actualizacionReses;
+            _notificacionIncorporacion = notificacionIncorporacion;
         }
 
-        // Crear un nuevo potrero
-        public string CrearPotrero(string identificacion, l_tipos_potreros tipo)
+        public string CrearPotrero(string identificacion, string tipo)
         {
             try
             {
                 string validado;
-                // Verificar si ya existe un potrero con esa identificación
-                if (_hacienda.L_potreros.Any(p => p.Identificacion == identificacion))
+                var potreros = _consultaPotreros.ObtenerTodosLosPotreros();
+
+                if (potreros.Any(p => p.Identificacion == identificacion))
                 {
                     throw new InvalidOperationException($"Ya existe un potrero con la identificación '{identificacion}'");
                 }
 
-                // Intentar crear el potrero (mensaje de evento del dominio)
-                string resultado = _hacienda.crear_potrero(identificacion, tipo);
+                string resultado;
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(identificacion))
+                    {
+                        throw new ArgumentException("El nombre de la res no puede estar vacío", nameof(identificacion));
+                    }
 
-                // Guardar los cambios CON VALIDACIÓN (mensaje del aspecto de persistencia)
-                validado = _persistencia.GuardarPotreros(_hacienda.L_potreros);
+                    if (potreros.Any(p => p.Identificacion.Equals(identificacion, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        throw new InvalidOperationException($"Ya existe un potrero con el nombre '{identificacion}'.");
+                    }
 
-                // Mensaje compuesto: evento + guardado
+                    IReglasTipoPotrero reglas = _tiposPotrero.Obtener(tipo);
+                    Potrero nuevoPotrero = new Potrero(identificacion, reglas, _notificacionIncorporacion);
+                    _registroPotrero.Agregar(nuevoPotrero);
+
+                    resultado = $"El potrero {identificacion} se a añadido a la hacienda. ";
+                }
+                catch (Exception er)
+                {
+                    throw new Exception("Error inesperado en el metodo crear_potrero: " + er.Message);
+                }
+
+                validado = _actualizacionPotreros.ActualizarPotreros(
+                    _consultaPotreros.ObtenerTodosLosPotreros().ToList());
+
                 return $"{resultado}. {validado}";
             }
             catch (InvalidOperationException)
@@ -43,57 +75,40 @@ namespace p_mvcHacienda.Servicios
             }
             catch (Exception ex)
             {
-                // Re-lanzar la excepción para que el controlador la maneje
                 throw new Exception($"Error al crear el potrero: {ex.Message}");
             }
         }
 
-        // Obtener todos los potreros
-        public List<Potrero> ObtenerTodosLosPotreros()
-        {
-            return _hacienda.L_potreros.OrderBy(p => p.Identificacion).ToList();
-        }
-
-        // Obtener un potrero por identificación
-        public Potrero? ObtenerPotreroPorIdentificacion(string identificacion)
-        {
-            try
-            {
-                return _hacienda.buscar_potrero(identificacion);
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        // Agregar una res al potrero
         public string AgregarRes(string potreroId, string nombreRes, ushort edad, uint peso)
         {
             try
             {
                 string validado;
+                var potrero = _consultaPotreros.BuscarPotrero(potreroId);
 
-                // Verificar que el potrero existe
-                var potrero = _hacienda.buscar_potrero(potreroId);
                 if (potrero == null)
                 {
                     throw new InvalidOperationException($"No se encontró el potrero '{potreroId}'");
                 }
 
-                // Verificar que no existe una res con ese nombre en el potrero
                 if (potrero.L_reses.Any(r => r.Nombre == nombreRes))
                 {
                     throw new InvalidOperationException($"Ya existe una res con el nombre '{nombreRes}' en el potrero '{potreroId}'");
                 }
 
-                // Usar el método de Hacienda (mensaje de evento del dominio)
-                string resultado = _hacienda.anadir_res_potrero(potreroId, nombreRes, edad, peso);
+                string resultado;
+                try
+                {
+                    resultado = potrero.anadir_res(nombreRes, edad, peso);
+                }
+                catch (Exception er)
+                {
+                    throw new Exception("Error inesperado en el método anadir_res_potrero: " + er.Message);
+                }
 
-                // Guardar con validación (mensaje del aspecto)
-                validado = _persistencia.GuardarReses(_hacienda.L_potreros);
+                validado = _actualizacionReses.ActualizarReses(
+                    _consultaPotreros.ObtenerTodosLosPotreros().ToList());
 
-                // Mensaje compuesto: evento + guardado
                 return $"{resultado}. {validado}";
             }
             catch (InvalidOperationException)
@@ -102,23 +117,8 @@ namespace p_mvcHacienda.Servicios
             }
             catch (Exception ex)
             {
-                // Re-lanzar la excepción para que el controlador la maneje
                 throw new Exception($"Error al agregar la res: {ex.Message}");
             }
-        }
-
-        // Obtener estadísticas
-        public Dictionary<string, object> ObtenerEstadisticas()
-        {
-            var potreros = _hacienda.L_potreros;
-
-            return new Dictionary<string, object>
-            {
-                { "TotalPotreros", potreros.Count },
-                { "TotalReses", potreros.Sum(p => p.L_reses.Count) },
-                { "PotrerosVacios", potreros.Count(p => p.L_reses.Count ==0) },
-                { "PotrerosConReses", potreros.Count(p => p.L_reses.Count >0) }
-            };
         }
     }
 }

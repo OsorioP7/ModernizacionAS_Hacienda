@@ -5,10 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Bib_Hacienda.Reglas;
+using Bib_Hacienda.Interfaces;
 
 namespace Bib_Hacienda.Eventos
 {
-    public class PublisherPotreroMitad
+    public class PublisherPotreroMitad : INotificadorPotreroMitad
     {
         //delegado y evento
         public delegate void delegado_potrero_mitad(string mensaje);
@@ -41,6 +42,28 @@ namespace Bib_Hacienda.Eventos
             {
                 throw new Exception("[Evento] Error inesperado en el metodo Informar_Potrero_Mitad: " + er.Message);
             }
+        }
+
+        public string Notificar(ushort cantidad_reses, Potrero potrero)
+        {
+            string mensaje = string.Empty;
+            delegado_potrero_mitad handler = m =>
+            {
+                if (!string.IsNullOrEmpty(m))
+                    mensaje = m;
+            };
+
+            evt_potrero_mitad += handler;
+            try
+            {
+                Informar_Potrero_Mitad(cantidad_reses, potrero);
+            }
+            finally
+            {
+                evt_potrero_mitad -= handler;
+            }
+
+            return mensaje;
         }
     }
 }

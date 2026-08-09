@@ -1,56 +1,71 @@
-锘縰sing Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using p_mvcHacienda.Servicios;
+using Bib_Hacienda.Interfaces;
 using static Bib_Hacienda.Clases.Viva;
-using System.Globalization;
 
 namespace p_mvcHacienda.Controllers
 {
     public class VacunaController : Controller
     {
         // Atributos
-        private readonly VacunaService _vacunaService;
+        private readonly AplicacionVacuna _aplicacionVacuna;
+        private readonly ConsultaVacunas _consultaVacunas;
+        private readonly EstadisticasVacunas _estadisticasVacunas;
+        private readonly IReadOnlyDictionary<string, ICreacionPorTipoVacuna> _formulariosPorTipo;
+        private readonly ICreacionPorTipoVacuna _formularioPredeterminado;
         private readonly ResService _resService;
-        private readonly PotreroService _potreroService;
+        private readonly IConsultaPotreros _consultaPotreros;
 
-        //Constructor con inyecci贸n de dependencias
-        public VacunaController(VacunaService vacunaService, ResService resService, PotreroService potreroService)
+        //Constructor con inyecci髇 de dependencias
+        public VacunaController(
+            AplicacionVacuna aplicacionVacuna,
+            ConsultaVacunas consultaVacunas,
+            EstadisticasVacunas estadisticasVacunas,
+            IReadOnlyDictionary<string, ICreacionPorTipoVacuna> formulariosPorTipo,
+            ICreacionPorTipoVacuna formularioPredeterminado,
+            ResService resService,
+            IConsultaPotreros consultaPotreros)
         {
-            _vacunaService = vacunaService;
+            _aplicacionVacuna = aplicacionVacuna;
+            _consultaVacunas = consultaVacunas;
+            _estadisticasVacunas = estadisticasVacunas;
+            _formulariosPorTipo = formulariosPorTipo;
+            _formularioPredeterminado = formularioPredeterminado;
             _resService = resService;
-            _potreroService = potreroService;
+            _consultaPotreros = consultaPotreros;
         }
 
         // GET: Vacuna/Index - Listar todas las vacunas
         [HttpGet]
         public ActionResult Index()
         {
-            var vacunas = _vacunaService.ObtenerVacunasDisponibles();
-            var estadisticas = _vacunaService.ObtenerEstadisticas();
+            var vacunas = _consultaVacunas.ObtenerVacunasDisponibles();
+            var estadisticas = _estadisticasVacunas.ObtenerEstadisticas();
 
             ViewBag.Estadisticas = estadisticas;
 
             return View(vacunas);
         }
 
-        // GET: Vacuna/Create - Mostrar formulario de creaci贸n
+        // GET: Vacuna/Create - Mostrar formulario de creaci髇
         [HttpGet]
         public ActionResult Create()
         {
             return View();
         }
 
-        // GET: Vacuna/Aplicar - Mostrar formulario de aplicaci贸n
+        // GET: Vacuna/Aplicar - Mostrar formulario de aplicaci髇
         [HttpGet]
         public ActionResult Aplicar()
         {
-            ViewBag.Potreros = _potreroService.ObtenerTodosLosPotreros();
+            ViewBag.Potreros = _consultaPotreros.ObtenerTodosLosPotreros();
             ViewBag.Reses = _resService.ObtenerTodasLasReses();
-            ViewBag.Vacunas = _vacunaService.ObtenerVacunasDisponibles();
+            ViewBag.Vacunas = _consultaVacunas.ObtenerVacunasDisponibles();
             return View();
         }
 
-        // POST: Vacuna/Create - Procesar creaci贸n de vacuna
+        // POST: Vacuna/Create - Procesar creaci髇 de vacuna
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult Create(string tipoVacuna, string nombre, string lote,
@@ -59,61 +74,22 @@ namespace p_mvcHacienda.Controllers
         {
             try
             {
-                string resultado;
+                var solicitud = new SolicitudCreacionVacuna(
+                    tipoVacuna,
+                    nombre,
+                    lote,
+                    fechaVencimiento,
+                    fechaAplicacion,
+                    periodoAplicacion,
+                    atenuacion);
 
-                // Validar campos requeridos b谩sicos
-                if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(lote))
-                {
-                    ViewBag.Mensaje = "El nombre y lote son requeridos";
-                    ViewBag.TipoMensaje = "danger";
-                    return View();
-                }
+                var formulario = _formulariosPorTipo.TryGetValue(
+                    tipoVacuna ?? string.Empty,
+                    out var encontrado)
+                    ? encontrado
+                    : _formularioPredeterminado;
 
-                // Parsear fechas desde inputs HTML date (yyyy-MM-dd)
-                if (!DateTime.TryParseExact(fechaVencimiento, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fechaVenc))
-                {
-                    ViewBag.Mensaje = "Fecha de vencimiento inv谩lida";
-                    ViewBag.TipoMensaje = "danger";
-                    return View();
-                }
-                if (!DateTime.TryParseExact(fechaAplicacion, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fechaAplic))
-                {
-                    ViewBag.Mensaje = "Fecha de aplicaci贸n inv谩lida";
-                    ViewBag.TipoMensaje = "danger";
-                    return View();
-                }
-
-                // Reglas simples de fecha
-                if (fechaAplic > fechaVenc)
-                {
-                    ViewBag.Mensaje = "La fecha de aplicaci贸n no puede ser posterior a la fecha de vencimiento";
-                    ViewBag.TipoMensaje = "danger";
-                    return View();
-                }
-
-                if (tipoVacuna == "Bacteriana")
-                {
-                    //HasValue para validar que no sea nulo la entrada del formulario en la vista
-                    if (!periodoAplicacion.HasValue)
-                    {
-                        ViewBag.Mensaje = "El per铆odo de aplicaci贸n es requerido para vacunas bacterianas";
-                        ViewBag.TipoMensaje = "danger";
-                        return View();
-                    }
-                    // Pasar null para atenuaci贸n en bacterianas
-                    resultado = _vacunaService.CrearVacuna(nombre, lote, fechaVenc, fechaAplic, periodoAplicacion.Value, null);
-                }
-                else // Viva
-                {
-                    if (!atenuacion.HasValue)
-                    {
-                        ViewBag.Mensaje = "La atenuaci贸n es requerida para vacunas vivas";
-                        ViewBag.TipoMensaje = "danger";
-                        return View();
-                    }
-                    // Pasar null para per铆odo en vivas
-                    resultado = _vacunaService.CrearVacuna(nombre, lote, fechaVenc, fechaAplic, null, atenuacion.Value);
-                }
+                string resultado = formulario.Crear(solicitud);
 
                 if (resultado.Contains("x"))
                 {
@@ -136,7 +112,7 @@ namespace p_mvcHacienda.Controllers
             }
         }
 
-        // POST: Vacuna/Aplicar - Procesar aplicaci贸n de vacuna
+        // POST: Vacuna/Aplicar - Procesar aplicaci髇 de vacuna
         [HttpPost]
         [ValidateAntiForgeryToken]
         public ActionResult Aplicar(string potreroId, string nombreRes, string loteVacuna)
@@ -147,13 +123,13 @@ namespace p_mvcHacienda.Controllers
                 {
                     ViewBag.Mensaje = " Todos los campos son requeridos";
                     ViewBag.TipoMensaje = "danger";
-                    ViewBag.Potreros = _potreroService.ObtenerTodosLosPotreros();
+                    ViewBag.Potreros = _consultaPotreros.ObtenerTodosLosPotreros();
                     ViewBag.Reses = _resService.ObtenerTodasLasReses();
-                    ViewBag.Vacunas = _vacunaService.ObtenerVacunasDisponibles();
+                    ViewBag.Vacunas = _consultaVacunas.ObtenerVacunasDisponibles();
                     return View();
                 }
 
-                var resultado = _vacunaService.AplicarVacuna(potreroId, nombreRes, loteVacuna);
+                var resultado = _aplicacionVacuna.AplicarVacuna(potreroId, nombreRes, loteVacuna);
 
                 TempData["Mensaje"] = resultado;
                 TempData["TipoMensaje"] = resultado.Contains("x") ? "success" : "danger";
@@ -164,9 +140,9 @@ namespace p_mvcHacienda.Controllers
             {
                 ViewBag.Mensaje = $" Error: {ex.Message}";
                 ViewBag.TipoMensaje = "danger";
-                ViewBag.Potreros = _potreroService.ObtenerTodosLosPotreros();
+                ViewBag.Potreros = _consultaPotreros.ObtenerTodosLosPotreros();
                 ViewBag.Reses = _resService.ObtenerTodasLasReses();
-                ViewBag.Vacunas = _vacunaService.ObtenerVacunasDisponibles();
+                ViewBag.Vacunas = _consultaVacunas.ObtenerVacunasDisponibles();
                 return View();
             }
         }

@@ -1,14 +1,14 @@
 ﻿using Bib_Hacienda.Clases;
-using Bib_Hacienda.Reglas;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Bib_Hacienda.Interfaces;
 
 namespace Bib_Hacienda.Eventos
 {
-    public class PublisherPesoVenta
+    public class PublisherPesoVenta : INotificadorPesoVenta
     {
         //Definicion del delegado y el evento
         public delegate void dele_peso_venta(string peso_venta);
@@ -22,11 +22,7 @@ namespace Bib_Hacienda.Eventos
                     
 
                     //Determinar el peso recomendado para la venta segun el tipo de res
-                    ushort peso_apto = 0;
-
-                    if (res is Ternero) { peso_apto = ReglaRes.peso_recom_venta_ternero; }
-                    else if (res is Cebon) { peso_apto = ReglaRes.peso_recom_venta_cebon; }
-                    else if (res is Novillo) { peso_apto = ReglaRes.peso_recom_venta_novillo; }
+                    ushort peso_apto = res.ReglaPeso.PesoVenta;
 
                     //Informar si la res está apta para la venta
                     if (res.Peso >= peso_apto)
@@ -48,6 +44,28 @@ namespace Bib_Hacienda.Eventos
             {
                 throw new Exception("Error inesperado en el metodo Informar_Peso_Venta: " + er.Message);
             }
+        }
+
+        public string Notificar(Res res)
+        {
+            string mensaje = string.Empty;
+            dele_peso_venta handler = m =>
+            {
+                if (!string.IsNullOrEmpty(m))
+                    mensaje = m;
+            };
+
+            evt_peso_venta += handler;
+            try
+            {
+                Informar_Peso_Venta(res);
+            }
+            finally
+            {
+                evt_peso_venta -= handler;
+            }
+
+            return mensaje;
         }
     }
 }

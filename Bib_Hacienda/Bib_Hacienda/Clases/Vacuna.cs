@@ -1,4 +1,5 @@
-﻿using Bib_Hacienda.Eventos;
+using Bib_Hacienda.Eventos;
+using Bib_Hacienda.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,5 +31,8 @@ namespace Bib_Hacienda.Clases
         public string Lote { get => lote; set => lote = value; }
         public DateTime Fecha_vencimiento { get => fecha_vencimiento; set => fecha_vencimiento = value; }
         public DateTime Fecha_aplicacion { get => fecha_aplicacion; set => fecha_aplicacion = value; }
+        public abstract string TipoVacuna { get; }
+        public abstract void AcumularContador(ref byte contadorBacterianas, ref byte contadorVivas);
+        public abstract void ValidarLimite(IReglasVacunacionRes reglas, byte contadorBacterianas, byte contadorVivas, string nombreRes);
     }
 }

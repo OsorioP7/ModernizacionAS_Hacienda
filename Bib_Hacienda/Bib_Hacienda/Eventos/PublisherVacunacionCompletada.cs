@@ -1,10 +1,6 @@
-﻿using Bib_Hacienda.Clases;
-using Bib_Hacienda.Reglas;
+using Bib_Hacienda.Clases;
+using Bib_Hacienda.Interfaces;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Bib_Hacienda.Eventos
 {
@@ -27,17 +23,9 @@ namespace Bib_Hacienda.Eventos
                 //Verificar si la res ha completado su esquema de vacunacion
                 bool esquema_completo = false;
 
-                if (res is Ternero && contador_bacterianas >= ReglaVacuna.max_bac_ternero && contador_vivas >= ReglaVacuna.max_viv_ternero)
+                if (res is IReglasVacunacionRes reglas)
                 {
-                    esquema_completo = true;
-                }
-                else if (res is Novillo && contador_bacterianas >= ReglaVacuna.max_bac_novillo && contador_vivas >= ReglaVacuna.max_viv_novillo)
-                {
-                    esquema_completo = true;
-                }
-                else if (res is Cebon && contador_bacterianas >= ReglaVacuna.max_bac_cebon && contador_vivas >= ReglaVacuna.max_viv_cebon)
-                {
-                    esquema_completo = true;
+                    esquema_completo = reglas.EsquemaCompleto(contador_bacterianas, contador_vivas);
                 }
 
                 // Disparar el evento con el mensaje apropiado

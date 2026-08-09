@@ -5,19 +5,26 @@ namespace p_mvcHacienda.Controllers
 {
     public class UsuarioController : Controller
     {
-        private readonly UsuarioService _usuarioService;
+        private readonly ConsultaUsuariosHacienda _consultaUsuarios;
+        private readonly CreacionUsuarioHacienda _creacionUsuario;
+        private readonly EstadisticasUsuariosHacienda _estadisticasUsuarios;
 
-        public UsuarioController(UsuarioService usuarioService)
+        public UsuarioController(
+            ConsultaUsuariosHacienda consultaUsuarios,
+            CreacionUsuarioHacienda creacionUsuario,
+            EstadisticasUsuariosHacienda estadisticasUsuarios)
         {
-            _usuarioService = usuarioService;
+            _consultaUsuarios = consultaUsuarios;
+            _creacionUsuario = creacionUsuario;
+            _estadisticasUsuarios = estadisticasUsuarios;
         }
 
         // GET: Usuario/Index - Listar todos los usuarios
         [HttpGet]
         public ActionResult Index()
         {
-            var usuarios = _usuarioService.ObtenerTodosLosUsuarios();
-            var estadisticas = _usuarioService.ObtenerEstadisticas();
+            var usuarios = _consultaUsuarios.ObtenerTodosLosUsuarios();
+            var estadisticas = _estadisticasUsuarios.ObtenerEstadisticas();
 
             ViewBag.Estadisticas = estadisticas;
 
@@ -45,7 +52,7 @@ namespace p_mvcHacienda.Controllers
                     return View();
                 }
 
-                var resultado = _usuarioService.CrearUsuario(nombre, contrasena);
+                var resultado = _creacionUsuario.CrearUsuario(nombre, contrasena);
 
                 if (resultado.Contains("✅"))
                 {

@@ -19,5 +19,6 @@ namespace Bib_Hacienda.Clases
 
         public string Nombre { get => nombre; set => nombre = value; }
         public string Contrasena { get => contrasena; set => contrasena = value; }
+        public string Rol { get => Nombre; }
     }
 }

@@ -1,89 +1,82 @@
-using Bib_Hacienda.Aspectos;
 using Bib_Hacienda.Clases;
 using Bib_Hacienda.Clases.Validaciones;
-using Castle.DynamicProxy;
-using static Bib_Hacienda.Clases.Potrero;
-using static Bib_Hacienda.Clases.Viva;
 using System.Globalization;
-using Microsoft.AspNetCore.Hosting;
+using Bib_Hacienda.Interfaces;
 
 namespace p_mvcHacienda.Servicios
 {
-    public class PersistenciaService
+    public class PersistenciaService : IActualizacionPotreros, IActualizacionReses, IActualizacionVentas, ICargaUsuarios, IGuardadoUsuarios, ICargaVacunas, IActualizacionInventarioVacunas, IActualizacionHistorialVacunacion
     {
         // Atributos
-        private readonly string _directorioArchivos;
-        private readonly IHttpContextAccessor _httpContextAccessor;
-        private InterceptorValidarInformacion? _interceptorValidacion;
+        private readonly IAlmacenamientoHacienda _almacenamiento;
+        private readonly IReadOnlyDictionary<string, IReglasTipoPotrero> _reglasPorTipo;
+        private readonly ICargaVacuna _cargaVacuna;
+        private readonly INotificacionIncorporacionRes _notificacionIncorporacion;
+        private readonly IValidadoresGuardado _validadores;
+        private readonly IResultadoValidacion _resultadoValidacion;
+        private readonly IValidador<Usuario> _validadorDatosRequeridosUsuario;
 
-        // Validadores con proxy (interceptados) - Lazy initialization
-        private ValidadorVacuna? _validadorVacunaProxy;
-        private ValidadorPotrero? _validadorPotreroProxy;
-        private ValidadorRes? _validadorResProxy;
-        private ValidadorVenta? _validadorVentaProxy;
-
-        // Constructor - NO recibe Hacienda ni crea proxies aquí
-        public PersistenciaService(IHttpContextAccessor httpContextAccessor, IWebHostEnvironment env)
+        // Constructor - NO recibe Hacienda ni crea proxies aquï¿½
+public PersistenciaService(
+            IAlmacenamientoHacienda almacenamiento,
+            IReadOnlyDictionary<string, IReglasTipoPotrero> reglasPorTipo,
+            ICargaVacuna cargaVacuna,
+            INotificacionIncorporacionRes notificacionIncorporacion,
+            IValidadoresGuardado validadores,
+            IResultadoValidacion resultadoValidacion,
+            IValidador<Usuario> validadorDatosRequeridosUsuario)
         {
-            // Usar la raíz de contenido de la aplicación para resolver la carpeta Datos
-            _directorioArchivos = Path.Combine(env.ContentRootPath, "Datos");
-
-            if (!Directory.Exists(_directorioArchivos))
-            {
-                Directory.CreateDirectory(_directorioArchivos);
-            }
-
-            _httpContextAccessor = httpContextAccessor;
-            // NO inicializar interceptor aquí - se hará cuando sea necesario
-        }
-
-        // Crear proxies solo cuando se necesiten (lazy + thread-safe)
-        private void InicializarProxies()
-        {
-            if (_validadorVacunaProxy == null)
-            {
-                // Crear el interceptor aquí, cuando hay HttpContext disponible
-                if (_interceptorValidacion == null)
-                {
-                    _interceptorValidacion = new InterceptorValidarInformacion(_httpContextAccessor);
-                }
-
-                var proxyGenerator = new ProxyGenerator();
-                _validadorVacunaProxy = proxyGenerator.CreateClassProxy<ValidadorVacuna>(_interceptorValidacion);
-                _validadorPotreroProxy = proxyGenerator.CreateClassProxy<ValidadorPotrero>(_interceptorValidacion);
-                _validadorResProxy = proxyGenerator.CreateClassProxy<ValidadorRes>(_interceptorValidacion);
-                _validadorVentaProxy = proxyGenerator.CreateClassProxy<ValidadorVenta>(_interceptorValidacion);
-            }
+            // Usar la raï¿½z de contenido de la aplicaciï¿½n para resolver la carpeta Datos
+            _almacenamiento = almacenamiento;
+            _reglasPorTipo = reglasPorTipo;
+            _cargaVacuna = cargaVacuna;
+            _notificacionIncorporacion = notificacionIncorporacion;
+            _validadores = validadores;
+            _resultadoValidacion = resultadoValidacion;
+            _validadorDatosRequeridosUsuario = validadorDatosRequeridosUsuario;
+            // NO inicializar interceptor aquï¿½ - se harï¿½ cuando sea necesario
         }
 
         #region Guardar Datos
 
-        // Guardar potreros con validación
+        public string ActualizarPotreros(List<Potrero> potreros)
+        {
+            return GuardarPotreros(potreros);
+        }
+
+        public string ActualizarReses(List<Potrero> potreros)
+        {
+            return GuardarReses(potreros);
+        }
+
+        public string ActualizarVentas(List<Venta> ventas)
+        {
+            return GuardarVentas(ventas);
+        }
+
+        // Guardar potreros con validaciï¿½n
         public string GuardarPotreros(List<Potrero> potreros)
         {
             try
             {
-                InicializarProxies(); // Crear proxies solo cuando se guardan datos
                 bool esValido;
 
                 // Validar usando el PROXY (esto activa el interceptor)
                 foreach (var potrero in potreros)
                 {
-                    esValido = _validadorPotreroProxy!.ValidarPotrero(potrero);
+                    esValido = _validadores.ValidadorPotrero.Validar(potrero);
 
                     if (!esValido)
                     {
-                        var mensaje = _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString();
-                        return mensaje ?? "Error de validación en potrero";
+                        return _resultadoValidacion.Obtener("Error de validaciï¿½n en potrero");
                     }
                 }
 
                 // Serializar y guardar
                 var lineas = potreros.Select(p => $"{p.Identificacion}|{p.Tipo_potrero}");
-                File.WriteAllLines(Path.Combine(_directorioArchivos, "Potreros.txt"), lineas);
+                _almacenamiento.Guardar("Potreros", lineas);
 
-                return _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString()
-                    ?? "Guardado exitosamente";
+                return _resultadoValidacion.Obtener("Guardado exitosamente");
             }
             catch (Exception ex)
             {
@@ -91,12 +84,11 @@ namespace p_mvcHacienda.Servicios
             }
         }
 
-        // Guardar reses con validación
+        // Guardar reses con validaciï¿½n
         public string GuardarReses(List<Potrero> potreros)
         {
             try
             {
-                InicializarProxies();
                 var lineas = new List<string>();
                 bool esValida;
 
@@ -105,12 +97,11 @@ namespace p_mvcHacienda.Servicios
                     foreach (var res in potrero.L_reses)
                     {
                         // Validar usando el PROXY
-                        esValida = _validadorResProxy!.ValidarRes(res);
+                        esValida = _validadores.ValidadorRes.Validar(res);
 
                         if (!esValida)
                         {
-                            var mensaje = _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString();
-                            return mensaje ?? "Error de validación en res";
+                        return _resultadoValidacion.Obtener("Error de validaciï¿½n en res");
                         }
 
                         string tipoRes = res.GetType().Name;
@@ -118,10 +109,9 @@ namespace p_mvcHacienda.Servicios
                     }
                 }
 
-                File.WriteAllLines(Path.Combine(_directorioArchivos, "Reses.txt"), lineas);
+                _almacenamiento.Guardar("Reses", lineas);
 
-                return _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString()
-                    ?? "Guardado exitosamente";
+                return _resultadoValidacion.Obtener("Guardado exitosamente");
             }
             catch (Exception ex)
             {
@@ -129,12 +119,11 @@ namespace p_mvcHacienda.Servicios
             }
         }
 
-        // Guardar ventas con validación
+        // Guardar ventas con validaciï¿½n
         public string GuardarVentas(List<Venta> ventas)
         {
             try
             {
-                InicializarProxies();
                 bool esValida;
                 string fecha;
                 string tipoRes;
@@ -142,12 +131,11 @@ namespace p_mvcHacienda.Servicios
                 // Validar usando el PROXY
                 foreach (var venta in ventas)
                 {
-                    esValida = _validadorVentaProxy!.ValidarVenta(venta);
+                    esValida = _validadores.ValidadorVenta.Validar(venta);
 
                     if (!esValida)
                     {
-                        var mensaje = _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString();
-                        return mensaje ?? "Error de validación en venta";
+                        return _resultadoValidacion.Obtener("Error de validaciï¿½n en venta");
                     }
                 }
 
@@ -160,10 +148,9 @@ namespace p_mvcHacienda.Servicios
                     lineas.Add($"{venta.Potrero.Identificacion}|{fecha}|{venta.Res.Nombre}|{venta.Res.Peso}|{venta.Res.Edad}|{tipoRes}|{venta.Monto}");
                 }
 
-                File.WriteAllLines(Path.Combine(_directorioArchivos, "Ventas.txt"), lineas);
+                _almacenamiento.Guardar("Ventas", lineas);
 
-                return _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString()
-                    ?? "Guardado exitosamente";
+                return _resultadoValidacion.Obtener("Guardado exitosamente");
             }
             catch (Exception ex)
             {
@@ -171,23 +158,21 @@ namespace p_mvcHacienda.Servicios
             }
         }
 
-        // Guardar vacunas con validación
+        // Guardar vacunas con validaciï¿½n
         public string GuardarVacunas(List<Vacuna> vacunas)
         {
             try
             {
-                InicializarProxies();
                 bool esValida;
 
                 // Validar usando el PROXY
                 foreach (var vacuna in vacunas)
                 {
-                    esValida = _validadorVacunaProxy!.ValidarVacuna(vacuna);
+                    esValida = _validadores.ValidadorVacuna.Validar(vacuna);
 
                     if (!esValida)
                     {
-                        var mensaje = _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString();
-                        return mensaje ?? "Error de validación en vacuna";
+                        return _resultadoValidacion.Obtener("Error de validaciï¿½n en vacuna");
                     }
                 }
 
@@ -203,10 +188,9 @@ namespace p_mvcHacienda.Servicios
                     lineas.Add($"{vacuna.Nombre}|{vacuna.Lote}|{fechaVenc}|{fechaAplic}|{tipo}|{periodo}");
                 }
 
-                File.WriteAllLines(Path.Combine(_directorioArchivos, "Vacunas.txt"), lineas);
+                _almacenamiento.Guardar("Vacunas", lineas);
 
-                return _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString()
-                    ?? "Guardado exitosamente";
+                return _resultadoValidacion.Obtener("Guardado exitosamente");
             }
             catch (Exception ex)
             {
@@ -214,12 +198,11 @@ namespace p_mvcHacienda.Servicios
             }
         }
 
-        // Guardar vacunas aplicadas con validación
+        // Guardar vacunas aplicadas con validaciï¿½n
         public string GuardarVacunasAplicadas(List<Potrero> potreros)
         {
             try
             {
-                InicializarProxies();
                 var lineas = new List<string>();
                 bool resValida;
                 string fechaVenc;
@@ -232,21 +215,19 @@ namespace p_mvcHacienda.Servicios
                     foreach (var res in potrero.L_reses)
                     {
                         // Validar res
-                        resValida = _validadorResProxy!.ValidarRes(res);
+                        resValida = _validadores.ValidadorRes.Validar(res);
                         if (!resValida)
                         {
-                            var mensaje = _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString();
-                            return mensaje ?? "Error de validación en res";
+                        return _resultadoValidacion.Obtener("Error de validaciï¿½n en res");
                         }
 
                         foreach (var vacuna in res.L_vacunas_aplicadas)
                         {
                             // Validar vacuna
-                            bool vacunaValida = _validadorVacunaProxy!.ValidarVacuna(vacuna);
+                            bool vacunaValida = _validadores.ValidadorVacuna.Validar(vacuna);
                             if (!vacunaValida)
                             {
-                                var mensaje = _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString();
-                                return mensaje ?? "Error de validación en vacuna aplicada";
+                        return _resultadoValidacion.Obtener("Error de validaciï¿½n en vacuna aplicada");
                             }
 
                             // Serializar vacuna aplicada
@@ -260,10 +241,9 @@ namespace p_mvcHacienda.Servicios
                     }
                 }
 
-                File.WriteAllLines(Path.Combine(_directorioArchivos, "VacunasAplicadas.txt"), lineas);
+                _almacenamiento.Guardar("VacunasAplicadas", lineas);
 
-                return _httpContextAccessor.HttpContext?.Items["ResultadoValidacion"]?.ToString()
-                    ?? "Guardado exitosamente";
+                return _resultadoValidacion.Obtener("Guardado exitosamente");
             }
             catch (Exception ex)
             {
@@ -271,22 +251,22 @@ namespace p_mvcHacienda.Servicios
             }
         }
 
-        // Guardar usuarios (validación simple, sin proxies)
+        // Guardar usuarios (validaciï¿½n simple, sin proxies)
         public string GuardarUsuarios(List<Usuario> usuarios)
         {
             try
             {
-                // Validación simple para usuarios (sin proxy por ahora)
+                // Validaciï¿½n simple para usuarios (sin proxy por ahora)
                 foreach (var usuario in usuarios)
                 {
-                    if (string.IsNullOrWhiteSpace(usuario.Nombre) || string.IsNullOrWhiteSpace(usuario.Contrasena))
+                    if (!_validadorDatosRequeridosUsuario.Validar(usuario))
                     {
-                        return "Error: Usuario debe tener nombre y contraseña";
+                        return "Error: Usuario debe tener nombre y contraseï¿½a";
                     }
                 }
 
                 var lineas = usuarios.Select(u => $"{u.Nombre}|{u.Contrasena}");
-                File.WriteAllLines(Path.Combine(_directorioArchivos, "Usuarios.txt"), lineas);
+                _almacenamiento.Guardar("Usuarios", lineas);
 
                 return "Guardado exitosamente";
             }
@@ -305,16 +285,15 @@ namespace p_mvcHacienda.Servicios
         {
             try
             {
-                string rutaArchivo = Path.Combine(_directorioArchivos, "Potreros.txt");
                 string identificacion;
 
-                if (!File.Exists(rutaArchivo))
+                if (!_almacenamiento.Existe("Potreros"))
                 {
                     return new List<Potrero>();
                 }
 
                 var potreros = new List<Potrero>();
-                var lineas = File.ReadAllLines(rutaArchivo);
+                var lineas = _almacenamiento.Cargar("Potreros");
 
                 foreach (var linea in lineas)
                 {
@@ -324,12 +303,11 @@ namespace p_mvcHacienda.Servicios
                     if (partes.Length >=2)
                     {
                         identificacion = partes[0].Trim(); // normalizar
-                        l_tipos_potreros tipo = Enum.Parse<l_tipos_potreros>(partes[1]);
-
+                        string tipo = partes[1].Trim();
                         // evitar duplicados por identificacion (case-insensitive)
                         if (!potreros.Any(p => string.Equals(p.Identificacion, identificacion, StringComparison.OrdinalIgnoreCase)))
                         {
-                            potreros.Add(new Potrero(identificacion, tipo));
+                            potreros.Add(new Potrero(identificacion, _reglasPorTipo[tipo], _notificacionIncorporacion));
                         }
                     }
                 }
@@ -347,18 +325,17 @@ namespace p_mvcHacienda.Servicios
         {
             try
             {
-                string rutaArchivo = Path.Combine(_directorioArchivos, "Reses.txt");
                 string nombreRes;
                 string nombrePotrero;
                 uint peso;
                 ushort edad;
 
-                if (!File.Exists(rutaArchivo))
+                if (!_almacenamiento.Existe("Reses"))
                 {
                     return;
                 }
 
-                var lineas = File.ReadAllLines(rutaArchivo);
+                var lineas = _almacenamiento.Cargar("Reses");
 
                 foreach (var linea in lineas)
                 {
@@ -375,7 +352,9 @@ namespace p_mvcHacienda.Servicios
                         var potrero = potreros.FirstOrDefault(p => string.Equals(p.Identificacion, nombrePotrero, StringComparison.OrdinalIgnoreCase));
                         if (potrero != null)
                         {
-                            potrero.anadir_res(nombreRes, edad, peso);
+                            var regla = _reglasPorTipo[potrero.Tipo_potrero];
+                            regla.ValidarEdad(edad, potrero.Identificacion);
+                            potrero.L_reses.Add(regla.CrearRes(nombreRes, peso, edad));
                         }
                     }
                 }
@@ -390,7 +369,6 @@ namespace p_mvcHacienda.Servicios
         {
             try
             {
-                string rutaArchivo = Path.Combine(_directorioArchivos, "Ventas.txt");
                 string potreroId;
                 DateTime fecha;
                 string resNombre;
@@ -399,13 +377,13 @@ namespace p_mvcHacienda.Servicios
                 string resTipo;
                 uint monto;
 
-                if (!File.Exists(rutaArchivo))
+                if (!_almacenamiento.Existe("Ventas"))
                 {
                     return new List<Venta>();
                 }
 
                 var ventas = new List<Venta>();
-                var lineas = File.ReadAllLines(rutaArchivo);
+                var lineas = _almacenamiento.Cargar("Ventas");
 
                 foreach (var linea in lineas)
                 {
@@ -428,16 +406,18 @@ namespace p_mvcHacienda.Servicios
                         var potrero = potreros.FirstOrDefault(p => string.Equals(p.Identificacion, potreroId, StringComparison.OrdinalIgnoreCase));
                         if (potrero == null)
                         {
-                            potrero = new Potrero(potreroId, l_tipos_potreros.ternero);
+                            potrero = new Potrero(potreroId, _reglasPorTipo["ternero"], _notificacionIncorporacion);
                         }
 
-                        Res res = resTipo switch
+                        IReglasTipoPotrero reglaTipoRes = resTipo switch
                         {
-                            "Ternero" => new Ternero(resNombre, resPeso, resEdad),
-                            "Novillo" => new Novillo(resNombre, resPeso, resEdad),
-                            "Cebon" => new Cebon(resNombre, resPeso, resEdad),
-                            _ => new Ternero(resNombre, resPeso, resEdad)
+                            "Ternero" => _reglasPorTipo["ternero"],
+                            "Novillo" => _reglasPorTipo["novillo"],
+                            "Cebon" => _reglasPorTipo["cebon"],
+                            _ => _reglasPorTipo["ternero"]
                         };
+
+                        Res res = reglaTipoRes.CrearRes(resNombre, resPeso, resEdad);
 
                         ventas.Add(new Venta(potrero, fecha, res, monto));
                     }
@@ -456,21 +436,13 @@ namespace p_mvcHacienda.Servicios
         {
             try
             {
-                string rutaArchivo = Path.Combine(_directorioArchivos, "Vacunas.txt");
-                string nombre;
-                string lote;
-                DateTime fechaVenc;
-                DateTime fechaAplic;
-                string tipo;
-                uint periodo;
-
-                if (!File.Exists(rutaArchivo))
+                if (!_almacenamiento.Existe("Vacunas"))
                 {
                     return new List<Vacuna>();
                 }
 
                 var vacunas = new List<Vacuna>();
-                var lineas = File.ReadAllLines(rutaArchivo);
+                var lineas = _almacenamiento.Cargar("Vacunas");
 
                 foreach (var linea in lineas)
                 {
@@ -479,42 +451,16 @@ namespace p_mvcHacienda.Servicios
                     var partes = linea.Split('|');
                     if (partes.Length >=6)
                     {
-                        nombre = partes[0];
-                        lote = partes[1];
-                        if (!DateTime.TryParseExact(partes[2].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out fechaVenc))
+                        string[] camposVacuna =
                         {
-                            continue;
-                        }
-                        if (!DateTime.TryParseExact(partes[3].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out fechaAplic))
+                            partes[0], partes[1], partes[2],
+                            partes[3], partes[4], partes[5]
+                        };
+                        Vacuna vacuna = _cargaVacuna.Cargar(camposVacuna);
+                        if (vacuna != null)
                         {
-                            continue;
+                            vacunas.Add(vacuna);
                         }
-                        tipo = partes[4].Trim();
-                        periodo = uint.TryParse(partes[5].Trim(), out var per) ? per :0u;
-
-                        Vacuna vacuna;
-                        if (tipo.Equals("Bacteriana", StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (!uint.TryParse(partes[5].Trim(), out periodo) || periodo < 2 || periodo > 4)
-                            {
-                                // TODO: loggear línea inválida
-                                continue; // omitir y seguir
-                            }
-                            try
-                            {
-                                vacuna = new Bacteriana(nombre, lote, fechaVenc, fechaAplic, periodo);
-                            }
-                            catch
-                            {
-                                continue; // por si el constructor valida otras reglas
-                            }
-                        }
-                        else
-                        {
-                            vacuna = new Viva(nombre, lote, fechaVenc, fechaAplic, enum_l_atenuaciones.Atenuacion10);
-                        }
-
-                        vacunas.Add(vacuna);
                     }
                 }
 
@@ -531,22 +477,17 @@ namespace p_mvcHacienda.Servicios
         {
             try
             {
-                string rutaArchivo = Path.Combine(_directorioArchivos, "VacunasAplicadas.txt");
                 string nombrePotrero;
                 string nombreRes;
-                string nombreVacuna;
-                string lote;
                 DateTime fechaVenc;
                 DateTime fechaAplic;
-                string tipo;
-                uint periodo;
 
-                if (!File.Exists(rutaArchivo))
+                if (!_almacenamiento.Existe("VacunasAplicadas"))
                 {
                     return;
                 }
 
-                var lineas = File.ReadAllLines(rutaArchivo);
+                var lineas = _almacenamiento.Cargar("VacunasAplicadas");
 
                 foreach (var linea in lineas)
                 {
@@ -557,8 +498,6 @@ namespace p_mvcHacienda.Servicios
                     {
                         nombrePotrero = partes[0].Trim();
                         nombreRes = partes[1];
-                        nombreVacuna = partes[2];
-                        lote = partes[3];
                         if (!DateTime.TryParseExact(partes[4].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out fechaVenc))
                         {
                             continue;
@@ -567,25 +506,15 @@ namespace p_mvcHacienda.Servicios
                         {
                             continue;
                         }
-                        tipo = partes[6];
-                        periodo = uint.TryParse(partes[7].Trim(), out var per) ? per :0u;
-
                         var potrero = potreros.FirstOrDefault(p => string.Equals(p.Identificacion, nombrePotrero, StringComparison.OrdinalIgnoreCase));
                         if (potrero != null)
                         {
                             var res = potrero.buscar_res(nombreRes);
                             if (res != null)
                             {
-                                Vacuna vacuna;
-                                if (tipo == "Bacteriana")
-                                {
-                                    vacuna = new Bacteriana(nombreVacuna, lote, fechaVenc, fechaAplic, periodo);
-                                }
-                                else
-                                {
-                                    vacuna = new Viva(nombreVacuna, lote, fechaVenc, fechaAplic, enum_l_atenuaciones.Atenuacion10);
-                                }
-
+                                string[] camposVacuna = new string[8];
+                                Array.Copy(partes, camposVacuna, 8);
+                                Vacuna vacuna = _cargaVacuna.Cargar(camposVacuna);
                                 res.L_vacunas_aplicadas.Add(vacuna);
                             }
                         }
@@ -603,17 +532,16 @@ namespace p_mvcHacienda.Servicios
         {
             try
             {
-                string rutaArchivo = Path.Combine(_directorioArchivos, "Usuarios.txt");
                 string nombre;
                 string contrasena;
 
-                if (!File.Exists(rutaArchivo))
+                if (!_almacenamiento.Existe("Usuarios"))
                 {
                     return new List<Usuario>();
                 }
 
                 var usuarios = new List<Usuario>();
-                var lineas = File.ReadAllLines(rutaArchivo);
+                var lineas = _almacenamiento.Cargar("Usuarios");
 
                 foreach (var linea in lineas)
                 {

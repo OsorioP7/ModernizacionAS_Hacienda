@@ -1,4 +1,5 @@
-﻿using Bib_Hacienda.Clases;
+using Bib_Hacienda.Clases;
+using Bib_Hacienda.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using p_mvcHacienda.Servicios;
@@ -10,16 +11,16 @@ namespace p_mvcHacienda.Controllers
         // Atributos
         private readonly ResService _resService;
         private readonly PotreroService _potreroService;
-        private readonly Hacienda _hacienda;
-        private readonly PersistenciaService _persistencia;
+        private readonly IConsultaPotreros _consultaPotreros;
+        private readonly IVentaRes _ventaRes;
 
-        //Constructor con inyección de dependencias
-        public ResController(ResService resService, PotreroService potreroService, Hacienda hacienda, PersistenciaService persistencia)
+        //Constructor con inyecci�n de dependencias
+        public ResController(ResService resService, PotreroService potreroService, IConsultaPotreros consultaPotreros, IVentaRes ventaRes)
         {
             _resService = resService;
             _potreroService = potreroService;
-            _hacienda = hacienda;
-            _persistencia = persistencia;
+            _consultaPotreros = consultaPotreros;
+            _ventaRes = ventaRes;
         }
 
         // GET: Res/Index - Listar todas las reses
@@ -40,7 +41,7 @@ namespace p_mvcHacienda.Controllers
         {
             try
             {
-                var potrero = _hacienda.buscar_potrero(potreroId);
+                var potrero = _consultaPotreros.BuscarPotrero(potreroId);
                 var res = potrero.buscar_res(nombreRes);
                 if (res == null)
                 {
@@ -61,14 +62,14 @@ namespace p_mvcHacienda.Controllers
             }
         }
 
-        // GET: Res/Create - Mostrar formulario de creación
+        // GET: Res/Create - Mostrar formulario de creaci�n
         public ActionResult Create()
         {
-            ViewBag.Potreros = _potreroService.ObtenerTodosLosPotreros();
+            ViewBag.Potreros = _consultaPotreros.ObtenerTodosLosPotreros();
             return View();
         }
 
-        // POST: Res/Create - Procesar creación de res
+        // POST: Res/Create - Procesar creaci�n de res
         [HttpPost]
         public ActionResult Create(string potreroId, string nombre, ushort edad, uint peso)
         {
@@ -81,7 +82,7 @@ namespace p_mvcHacienda.Controllers
                 {
                     ViewBag.Mensaje = "Todos los campos son requeridos";
                     ViewBag.TipoMensaje = "danger";
-                    ViewBag.Potreros = _potreroService.ObtenerTodosLosPotreros();
+                    ViewBag.Potreros = _consultaPotreros.ObtenerTodosLosPotreros();
                     return View();
                 }
 
@@ -98,7 +99,7 @@ namespace p_mvcHacienda.Controllers
                 ViewBag.TipoMensaje = "danger";
             }
 
-            ViewBag.Potreros = _potreroService.ObtenerTodosLosPotreros();
+            ViewBag.Potreros = _consultaPotreros.ObtenerTodosLosPotreros();
             return View();
         }
 
@@ -110,10 +111,7 @@ namespace p_mvcHacienda.Controllers
                 string mensaje;
 
                 // Validar cantidad de alimento
-                mensaje = _hacienda.alimentar_res(potreroId, nombreRes, cantidadAlimento);
-
-                // Guardar cambios en archivo
-                _persistencia.GuardarReses(_hacienda.L_potreros);
+                mensaje = _resService.AlimentarRes(potreroId, nombreRes, cantidadAlimento);
 
                 string mensajeAlimento = cantidadAlimento == 1 ? "vez" : "veces";
                 TempData["Mensaje"] = mensaje;
@@ -144,15 +142,15 @@ namespace p_mvcHacienda.Controllers
                 // Intentar convertir a decimal primero
                 if (!decimal.TryParse(monto, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var montoDec))
                 {
-                    TempData["Mensaje"] = "Monto inválido";
+                    TempData["Mensaje"] = "Monto inv�lido";
                     TempData["TipoMensaje"] = "danger";
                     return RedirectToAction(nameof(Index));
                 }
 
-                // Validar límites de uint
+                // Validar l�mites de uint
                 if (montoDec < 0 || montoDec > uint.MaxValue)
                 {
-                    TempData["Mensaje"] = $"El monto excede el máximo permitido ({uint.MaxValue})";
+                    TempData["Mensaje"] = $"El monto excede el m�ximo permitido ({uint.MaxValue})";
                     TempData["TipoMensaje"] = "danger";
                     return RedirectToAction(nameof(Index));
                 }
@@ -161,12 +159,8 @@ namespace p_mvcHacienda.Controllers
 
                 string mensaje;
 
-                // Vende la res y envía el mensaje
-                mensaje = _hacienda.vender_res(potreroId, nombreRes, montoUint);
-
-                // Guardar cambios en archivos: ventas y reses
-                _persistencia.GuardarVentas(_hacienda.L_ventas);
-                _persistencia.GuardarReses(_hacienda.L_potreros);
+                // Vende la res y env�a el mensaje
+                mensaje = _ventaRes.vender_res(potreroId, nombreRes, montoUint);
 
                     TempData["Mensaje"] = mensaje;
                     TempData["TipoMensaje"] = "success";

@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Bib_Hacienda.Interfaces;
 
 namespace Bib_Hacienda.Clases.Validaciones
 {
     //Valida objetos de tipo Vacuna
-    public class ValidadorVacuna : Validacion
+    public class ValidadorVacuna : IValidador<Vacuna>
     {
-        public override bool ValidarVacuna(Vacuna vacuna)
+        public virtual bool ValidarVacuna(Vacuna vacuna)
         {
             if (vacuna == null || string.IsNullOrWhiteSpace(vacuna.Nombre) || string.IsNullOrWhiteSpace(vacuna.Lote))
             {
@@ -18,19 +19,7 @@ namespace Bib_Hacienda.Clases.Validaciones
             return true;
         }
 
-        public override bool ValidarRes(Res res)
-        {
-            throw new NotImplementedException("Use ValidadorRes");
-        }
-
-        public override bool ValidarPotrero(Potrero potrero)
-        {
-            throw new NotImplementedException("Use ValidadorPotrero");
-        }
-
-        public override bool ValidarVenta(Venta venta)
-        {
-            throw new NotImplementedException("Use ValidadorVenta");
-        }
+        public virtual bool Validar(Vacuna elemento)
+            => ValidarVacuna(elemento);
     }
 }

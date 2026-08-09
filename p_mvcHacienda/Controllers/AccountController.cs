@@ -2,16 +2,17 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
 using p_mvcHacienda.Models;
+using p_mvcHacienda.Servicios;
 
 namespace p_mvcHacienda.Controllers
 {
     public class AccountController : Controller
     {
-        private readonly Servicios.UsuarioService _usuarioService;
+        private readonly InicioSesionUsuario _inicioSesionUsuario;
 
-        public AccountController(Servicios.UsuarioService usuarioService)
+        public AccountController(InicioSesionUsuario inicioSesionUsuario)
         {
-            _usuarioService = usuarioService;
+            _inicioSesionUsuario = inicioSesionUsuario;
         }
 
         [HttpGet]
@@ -27,7 +28,7 @@ namespace p_mvcHacienda.Controllers
             ViewData["ReturnUrl"] = returnUrl;
             if (ModelState.IsValid)
             {
-                var (success, claims) = await _usuarioService.ValidateUserAsync(model.Username, model.Password);
+                var (success, claims) = await _inicioSesionUsuario.ValidateUserAsync(model.Username, model.Password);
 
                 if (success)
                 {

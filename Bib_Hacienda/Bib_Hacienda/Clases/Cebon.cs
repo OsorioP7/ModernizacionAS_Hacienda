@@ -1,26 +1,26 @@
-﻿using Bib_Hacienda.Reglas;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Bib_Hacienda.Interfaces;
+using Bib_Hacienda.Reglas;
+using Bib_Hacienda.Reglas.ReglasVacunacion;
 
 namespace Bib_Hacienda.Clases
 {
-    public class Cebon : Res //Hereda de Res
+    public class Cebon : Res, IReglasVacunacionRes //Hereda de Res
     {
-
         //Constructor
-        public Cebon(string nombre, uint peso, ushort edad) : base(nombre, peso, edad)
+        public Cebon(string nombre, uint peso, ushort edad, IReglaEdadRes regla_edad, IReglaPesoRes regla_peso)
+            : base(nombre, peso, edad, regla_edad, regla_peso, "El cebon excedió la edad maxima")
         {
         }
 
-        //Accesor sobrescrito para diferenciar la edad del cebon
-        public override ushort Edad
-        {
-            get => base.Edad;
-            set => base.Edad = (value > ReglaRes.edad_max_ternero && value <= ReglaRes.edad_max_cebon) ? value :
-                throw new Exception("El cebon excedió la edad maxima");
-        }
+        public override string TipoRes => "Cebones";
+
+        public void ValidarLimiteBacterianas(ushort contadorBacterianas, string nombreRes)
+            => ReglaVacunacionCebon.ValidarLimiteBacterianas(contadorBacterianas, nombreRes);
+
+        public void ValidarLimiteVivas(ushort contadorVivas, string nombreRes)
+            => ReglaVacunacionCebon.ValidarLimiteVivas(contadorVivas, nombreRes);
+
+        public bool EsquemaCompleto(ushort contadorBacterianas, ushort contadorVivas)
+            => ReglaVacunacionCebon.EsquemaCompleto(contadorBacterianas, contadorVivas);
     }
 }

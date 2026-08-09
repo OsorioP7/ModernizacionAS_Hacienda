@@ -1,5 +1,12 @@
 using Bib_Hacienda.Aspectos;
 using Bib_Hacienda.Clases;
+using Bib_Hacienda.Eventos;
+using Bib_Hacienda.Interfaces;
+using Bib_Hacienda.Reglas;
+using Bib_Hacienda.Reglas.ReglasEdadRes;
+using Bib_Hacienda.Reglas.ReglasCargaVacuna;
+using Bib_Hacienda.Reglas.ReglasPesoRes;
+using Bib_Hacienda.Reglas.ReglasTipoPotrero;
 using p_mvcHacienda.Servicios;
 
 namespace p_mvcHacienda
@@ -25,9 +32,98 @@ namespace p_mvcHacienda
 
             // Agregar HttpContextAccessor
             builder.Services.AddHttpContextAccessor();
+
+            builder.Services.AddSingleton<IAlmacenamientoHacienda, AlmacenamientoArchivosHacienda>();
+            builder.Services.AddSingleton<IValidadoresGuardado, ValidadoresPersistenciaInterceptados>();
+            builder.Services.AddSingleton<IResultadoValidacion, ResultadoValidacionHttpContext>();
+            builder.Services.AddSingleton<IValidador<Usuario>, ValidadorDatosRequeridosUsuario>();
+
+            IReglaEdadRes reglaEdadTernero = new ReglaEdadTernero();
+            IReglaEdadRes reglaEdadCebon = new ReglaEdadCebon();
+            IReglaEdadRes reglaEdadNovillo = new ReglaEdadNovillo();
+
+            IReglaPesoRes reglaPesoTernero = new ReglaPesoTernero();
+            IReglaPesoRes reglaPesoCebon = new ReglaPesoCebon();
+            IReglaPesoRes reglaPesoNovillo = new ReglaPesoNovillo();
+
+            IReglasTipoPotrero[] reglas =
+            {
+                new ReglaTipoPotreroTernero(reglaEdadTernero, reglaPesoTernero),
+                new ReglaTipoPotreroCebon(reglaEdadCebon, reglaPesoCebon),
+                new ReglaTipoPotreroNovillo(reglaEdadNovillo, reglaPesoNovillo)
+            };
+
+            var reglasPorTipo = reglas.ToDictionary(
+                r => r.TipoPotrero,
+                StringComparer.OrdinalIgnoreCase);
+
+            builder.Services.AddSingleton<IReadOnlyDictionary<string, IReglasTipoPotrero>>(reglasPorTipo);
+            builder.Services.AddSingleton<ITiposPotreroDisponibles, TiposPotreroDisponibles>();
+            IReglaCargaTipoVacuna[] reglasCargaVacuna =
+            {
+                new ReglaCargaBacteriana(),
+                new ReglaCargaViva()
+            };
+
+            var reglasCargaVacunaPorTipo = reglasCargaVacuna.ToDictionary(
+                r => r.TipoVacuna,
+                StringComparer.OrdinalIgnoreCase);
+
+            builder.Services.AddSingleton<ICargaVacuna>(_ => new CargaVacuna(
+                reglasCargaVacunaPorTipo,
+                reglasCargaVacunaPorTipo["Viva"]));
+            IReglasAutorizacionRol[] reglasAutorizacion =
+            {
+                new ReglaAutorizacionAdministrador(),
+                new ReglaAutorizacionEmpleado(),
+                new ReglaAutorizacionVisitante()
+            };
+
+            var reglasAutorizacionPorRol = reglasAutorizacion.ToDictionary(
+                r => r.Rol,
+                StringComparer.Ordinal);
+
+            builder.Services.AddSingleton<IReadOnlyDictionary<string, IReglasAutorizacionRol>>(reglasAutorizacionPorRol);
+
+            builder.Services.AddSingleton<RegistroUsuarios>();
+            builder.Services.AddSingleton<ILecturaUsuarios>(sp =>
+                sp.GetRequiredService<RegistroUsuarios>());
+            builder.Services.AddSingleton<IEscrituraUsuarios>(sp =>
+                sp.GetRequiredService<RegistroUsuarios>());
+            builder.Services.AddSingleton<IConsultaUsuarios, ConsultaUsuarios>();
+            builder.Services.AddSingleton<ICreacionUsuario, CreacionUsuario>();
+            builder.Services.AddSingleton<IInicializacionUsuarios, InicializacionUsuarios>();
+            builder.Services.AddSingleton<IValidacionCredenciales, Autenticacion>();
+            builder.Services.AddSingleton<IAutorizacionOperacion, AutorizacionOperacion>();
+
+            builder.Services.AddSingleton<INotificadorPotreroMitad>(_ => new PublisherPotreroMitad());
+            builder.Services.AddSingleton<INotificadorPotreroLleno>(_ => new PublisherPotreroLleno());
+            builder.Services.AddSingleton<INotificadorPesoMin>(_ => new PublisherPesoMin());
+            builder.Services.AddSingleton<INotificadorPesoVenta>(_ => new PublisherPesoVenta());
+            builder.Services.AddSingleton<INotificacionIncorporacionRes>(sp => new NotificacionIncorporacionRes(
+                sp.GetRequiredService<INotificadorPotreroMitad>(),
+                sp.GetRequiredService<INotificadorPotreroLleno>(),
+                sp.GetRequiredService<INotificadorPesoMin>(),
+                sp.GetRequiredService<INotificadorPesoVenta>()));
             
             // Registrar como Singleton (sin InterceptorValidarInformacion)
             builder.Services.AddSingleton<PersistenciaService>();
+            builder.Services.AddSingleton<ICargaUsuarios>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
+            builder.Services.AddSingleton<IGuardadoUsuarios>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
+            builder.Services.AddSingleton<IActualizacionPotreros>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
+            builder.Services.AddSingleton<IActualizacionReses>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
+            builder.Services.AddSingleton<IActualizacionVentas>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
+            builder.Services.AddSingleton<ICargaVacunas>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
+            builder.Services.AddSingleton<IActualizacionInventarioVacunas>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
+            builder.Services.AddSingleton<IActualizacionHistorialVacunacion>(sp =>
+                sp.GetRequiredService<PersistenciaService>());
             
             // Hacienda como Singleton - datos compartidos globalmente
             builder.Services.AddSingleton<Hacienda>(sp =>
@@ -73,20 +169,65 @@ namespace p_mvcHacienda
                 return hacienda;
             });
 
+            builder.Services.AddSingleton<IEstadoPotreros>(sp =>
+                sp.GetRequiredService<Hacienda>());
+            builder.Services.AddSingleton<IRegistroPotrero>(sp =>
+                sp.GetRequiredService<Hacienda>());
+            builder.Services.AddSingleton<IInventarioVacunas>(sp =>
+                sp.GetRequiredService<Hacienda>());
+            builder.Services.AddSingleton<IEstadoVentas>(sp =>
+                sp.GetRequiredService<Hacienda>());
+            builder.Services.AddSingleton<IRegistroVenta>(sp =>
+                sp.GetRequiredService<Hacienda>());
+            builder.Services.AddSingleton<IConsultaPotreros, ConsultaPotreros>();
+            builder.Services.AddSingleton<EstadisticasPotreros>();
+
             // Servicios como Singleton
             builder.Services.AddSingleton<PotreroService>();
             builder.Services.AddSingleton<ResService>();
-            builder.Services.AddSingleton<VacunaService>();
-            builder.Services.AddSingleton<VentaService>();
-            builder.Services.AddSingleton<UsuarioService>(sp =>
+            builder.Services.AddSingleton<InventarioVacunas>();
+            builder.Services.AddSingleton<ConsultaVacunas>();
+            builder.Services.AddSingleton<EstadisticasVacunas>();
+            builder.Services.AddSingleton<NotificacionVacunacion>();
+            builder.Services.AddSingleton<RegistroVacunacion>();
+            builder.Services.AddSingleton<AplicacionVacuna>();
+            builder.Services.AddSingleton<ICreacionVacunaBacteriana, CreacionVacunaBacteriana>();
+            builder.Services.AddSingleton<ICreacionVacunaViva, CreacionVacunaViva>();
+            builder.Services.AddSingleton<FormularioBacteriana>();
+            builder.Services.AddSingleton<FormularioViva>();
+            builder.Services.AddSingleton<IReadOnlyDictionary<string, ICreacionPorTipoVacuna>>(sp =>
             {
-                var persistencia = sp.GetRequiredService<PersistenciaService>();
-                var usuarioService = new UsuarioService(persistencia);
-                usuarioService.CargarUsuarios();
-                return usuarioService;
+                var formularioBacteriana = sp.GetRequiredService<FormularioBacteriana>();
+                var formularioViva = sp.GetRequiredService<FormularioViva>();
+
+                return new Dictionary<string, ICreacionPorTipoVacuna>(StringComparer.Ordinal)
+                {
+                    ["Bacteriana"] = formularioBacteriana,
+                    ["Viva"] = formularioViva
+                };
             });
+            builder.Services.AddSingleton<ICreacionPorTipoVacuna>(sp =>
+                sp.GetRequiredService<FormularioViva>());
+            builder.Services.AddSingleton<VentaService>();
+            builder.Services.AddSingleton<IVentaRes>(sp =>
+                sp.GetRequiredService<VentaService>());
+            builder.Services.AddSingleton<UsuariosRegistradosHacienda>(sp =>
+            {
+                var cargaUsuarios = sp.GetRequiredService<ICargaUsuarios>();
+                var usuarios = cargaUsuarios.CargarUsuarios();
+                return new UsuariosRegistradosHacienda(usuarios);
+            });
+            builder.Services.AddSingleton<CreacionUsuarioHacienda>();
+            builder.Services.AddSingleton<ConsultaUsuariosHacienda>();
+            builder.Services.AddSingleton<AutenticacionUsuarioHacienda>();
+            builder.Services.AddSingleton<EstadisticasUsuariosHacienda>();
+            builder.Services.AddSingleton<InicioSesionUsuario>();
 
             var app = builder.Build();
+
+            app.Services.GetRequiredService<UsuariosRegistradosHacienda>();
+
+            app.Services.GetRequiredService<IInicializacionUsuarios>().Inicializar();
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())

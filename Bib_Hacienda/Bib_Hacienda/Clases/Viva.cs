@@ -1,4 +1,5 @@
-ï»¿using System;
+using Bib_Hacienda.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,8 +10,20 @@ namespace Bib_Hacienda.Clases
     public class Viva : Vacuna //Hereda de Vacuna
     {
 
+        public override string TipoVacuna => "Vivas";
+
+        public override void AcumularContador(ref byte contadorBacterianas, ref byte contadorVivas)
+        {
+            contadorVivas++;
+        }
+
+        public override void ValidarLimite(IReglasVacunacionRes reglas, byte contadorBacterianas, byte contadorVivas, string nombreRes)
+        {
+            reglas.ValidarLimiteVivas(contadorVivas, nombreRes);
+        }
+
         //Enum para las atenuaciones
-        // Enum no cumple con Open/Closed, ya que si se desea agregar una nueva atenuaciÃ³n, se debe modificar el cÃ³digo de la clase, lo cual no es recomendable.
+        // Enum no cumple con Open/Closed, ya que si se desea agregar una nueva atenuación, se debe modificar el código de la clase, lo cual no es recomendable.
         public enum enum_l_atenuaciones
         {
             Atenuacion10 = 10,
