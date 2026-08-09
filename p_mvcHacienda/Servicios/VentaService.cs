@@ -1,9 +1,11 @@
 using Bib_Hacienda.Clases;
 using Bib_Hacienda.Interfaces;
+using System;
+using System.Linq;
 
 namespace p_mvcHacienda.Servicios
 {
-    public class VentaService : IVentaRes
+    public class VentaService : IVentaRes, IVentaProductoDerivado
     {
         // Atributos
         private readonly IEstadoVentas _estadoVentas;
@@ -11,19 +13,25 @@ namespace p_mvcHacienda.Servicios
         private readonly IConsultaPotreros _consultaPotreros;
         private readonly IActualizacionVentas _actualizacionVentas;
         private readonly IActualizacionReses _actualizacionReses;
+        private readonly IInventarioProductosDerivados _inventarioProductosDerivados;
+        private readonly IActualizacionProductosDerivados _actualizacionProductosDerivados;
 
         public VentaService(
             IEstadoVentas estadoVentas,
             IRegistroVenta registroVenta,
             IConsultaPotreros consultaPotreros,
             IActualizacionVentas actualizacionVentas,
-            IActualizacionReses actualizacionReses)
+            IActualizacionReses actualizacionReses,
+            IInventarioProductosDerivados inventarioProductosDerivados,
+            IActualizacionProductosDerivados actualizacionProductosDerivados)
         {
             _estadoVentas = estadoVentas;
             _registroVenta = registroVenta;
             _consultaPotreros = consultaPotreros;
             _actualizacionVentas = actualizacionVentas;
             _actualizacionReses = actualizacionReses;
+            _inventarioProductosDerivados = inventarioProductosDerivados;
+            _actualizacionProductosDerivados = actualizacionProductosDerivados;
         }
 
         // Obtener todas las ventas
@@ -38,7 +46,7 @@ namespace p_mvcHacienda.Servicios
         {
             // Filtrar ventas por el ID del potrero
             return _estadoVentas.Ventas
-                .Where(v => v.Potrero.Identificacion == potreroId)
+                .Where(v => string.Equals(v.ReferenciaOrigen, potreroId, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(v => v.Fecha)
                 .ToList();
         }
@@ -84,7 +92,7 @@ namespace p_mvcHacienda.Servicios
                 if (res == null) throw new ArgumentNullException(nameof(res));
 
                 // Crear la venta
-                Venta venta = new Venta(potrero, DateTime.Now, res, monto);
+                Venta venta = new Venta(DateTime.Now, res, 1, monto, potrero.Identificacion);
                 // Agregar la venta a la lista de ventas
                 _registroVenta.Agregar(venta);
                 // Remover la res del potrero
@@ -100,6 +108,39 @@ namespace p_mvcHacienda.Servicios
             {
                 throw new Exception("Error inesperado en el metodo vender_res: " + er.Message);
             }
+        }
+
+        public string VenderProductoDerivado(string codigo, uint cantidad)
+        {
+            var producto = _inventarioProductosDerivados.BuscarPorCodigo(codigo);
+            if (producto == null)
+            {
+                throw new ArgumentException($"No se encontró el producto con código '{codigo}'", nameof(codigo));
+            }
+
+            if (cantidad == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(cantidad), "La cantidad debe ser mayor que cero");
+            }
+
+            if (cantidad > producto.Existencia)
+            {
+                throw new InvalidOperationException("La cantidad solicitada supera la existencia disponible");
+            }
+
+            var venta = new Venta(
+                DateTime.Now,
+                producto,
+                cantidad,
+                producto.PrecioUnitario,
+                string.Empty);
+
+            _registroVenta.Agregar(venta);
+            _inventarioProductosDerivados.Descontar(producto.Codigo, cantidad);
+            _actualizacionVentas.ActualizarVentas(_estadoVentas.Ventas.ToList());
+            _actualizacionProductosDerivados.ActualizarProductosDerivados(_inventarioProductosDerivados.Productos);
+
+            return $"Venta del producto {producto.Nombre} realizada con exito";
         }
     }
 }

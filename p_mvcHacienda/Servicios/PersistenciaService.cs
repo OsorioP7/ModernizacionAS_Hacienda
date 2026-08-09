@@ -125,8 +125,6 @@ public PersistenciaService(
             try
             {
                 bool esValida;
-                string fecha;
-                string tipoRes;
 
                 // Validar usando el PROXY
                 foreach (var venta in ventas)
@@ -139,14 +137,18 @@ public PersistenciaService(
                     }
                 }
 
-                // Serializar y guardar
-                var lineas = new List<string>();
-                foreach (var venta in ventas)
+                // Las ventas nuevas usan un registro versionado con el snapshot genérico.
+                var lineas = ventas.Select(venta => string.Join("|", new[]
                 {
-                    fecha = venta.Fecha.ToString("yyyy-MM-dd");
-                    tipoRes = venta.Res.GetType().Name;
-                    lineas.Add($"{venta.Potrero.Identificacion}|{fecha}|{venta.Res.Nombre}|{venta.Res.Peso}|{venta.Res.Edad}|{tipoRes}|{venta.Monto}");
-                }
+                    "V2",
+                    venta.Fecha.ToString("O", CultureInfo.InvariantCulture),
+                    venta.NombreVendible,
+                    venta.TipoVendible,
+                    venta.Cantidad.ToString(CultureInfo.InvariantCulture),
+                    venta.PrecioUnitarioVenta.ToString(CultureInfo.InvariantCulture),
+                    venta.ReferenciaOrigen,
+                    venta.Monto.ToString(CultureInfo.InvariantCulture)
+                })).ToList();
 
                 _almacenamiento.Guardar("Ventas", lineas);
 
@@ -369,14 +371,6 @@ public PersistenciaService(
         {
             try
             {
-                string potreroId;
-                DateTime fecha;
-                string resNombre;
-                uint resPeso;
-                ushort resEdad;
-                string resTipo;
-                uint monto;
-
                 if (!_almacenamiento.Existe("Ventas"))
                 {
                     return new List<Venta>();
@@ -390,36 +384,37 @@ public PersistenciaService(
                     if (string.IsNullOrWhiteSpace(linea)) continue;
 
                     var partes = linea.Split('|');
-                    if (partes.Length >=7)
+                    if (partes.Length >= 8 && string.Equals(partes[0].Trim(), "V2", StringComparison.Ordinal))
                     {
-                        potreroId = partes[0].Trim();
-                        if (!DateTime.TryParseExact(partes[1].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out fecha))
+                        if (!DateTime.TryParse(partes[1].Trim(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var fecha) ||
+                            !uint.TryParse(partes[4].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var cantidad) ||
+                            !uint.TryParse(partes[5].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var precioUnitario))
                         {
                             continue;
                         }
-                        resNombre = partes[2];
-                        resPeso = uint.Parse(partes[3]);
-                        resEdad = ushort.Parse(partes[4]);
-                        resTipo = partes[5];
-                        monto = uint.Parse(partes[6]);
+                        ventas.Add(new Venta(fecha, partes[2], partes[3], cantidad, precioUnitario, partes[6]));
+                        continue;
+                    }
 
-                        var potrero = potreros.FirstOrDefault(p => string.Equals(p.Identificacion, potreroId, StringComparison.OrdinalIgnoreCase));
-                        if (potrero == null)
+                    // Formato histórico: potrero|fecha|nombre|peso|edad|tipo|monto
+                    if (partes.Length >= 7)
+                    {
+                        var potreroId = partes[0].Trim();
+                        if (!DateTime.TryParseExact(partes[1].Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha) ||
+                            !uint.TryParse(partes[3].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var resPeso) ||
+                            !ushort.TryParse(partes[4].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var resEdad) ||
+                            !uint.TryParse(partes[6].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var monto))
                         {
-                            potrero = new Potrero(potreroId, _reglasPorTipo["ternero"], _notificacionIncorporacion);
+                            continue;
                         }
 
-                        IReglasTipoPotrero reglaTipoRes = resTipo switch
+                        if (!_reglasPorTipo.TryGetValue(partes[5].Trim(), out var reglaTipoRes))
                         {
-                            "Ternero" => _reglasPorTipo["ternero"],
-                            "Novillo" => _reglasPorTipo["novillo"],
-                            "Cebon" => _reglasPorTipo["cebon"],
-                            _ => _reglasPorTipo["ternero"]
-                        };
+                            reglaTipoRes = _reglasPorTipo["ternero"];
+                        }
 
-                        Res res = reglaTipoRes.CrearRes(resNombre, resPeso, resEdad);
-
-                        ventas.Add(new Venta(potrero, fecha, res, monto));
+                        Res res = reglaTipoRes.CrearRes(partes[2], resPeso, resEdad);
+                        ventas.Add(new Venta(fecha, res, 1, monto, potreroId));
                     }
                 }
 
@@ -430,6 +425,7 @@ public PersistenciaService(
                 throw new Exception($"Error al cargar ventas: {ex.Message}");
             }
         }
+
 
         // Cargar vacunas disponibles
         public List<Vacuna> CargarVacunas()

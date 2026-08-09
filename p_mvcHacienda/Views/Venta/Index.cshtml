@@ -12,7 +12,7 @@
  <h1 class="display-6 fw-bold mb-1" style="color: var(--aw-text);">
  💰 Registro de Ventas
  </h1>
- <p class="text-muted mb-0">Historial completo de ventas de ganado</p>
+ <p class="text-muted mb-0">Historial completo de ventas de ganado y productos derivados</p>
  </div>
 
  <!-- Mensaje de éxito/error -->
@@ -70,8 +70,8 @@
 
  <!-- Información -->
  <div class="alert alert-info aw-card border-0">
- <strong>Información:</strong> Las ventas se registran automáticamente cuando vendes una res desde la sección de Reses.
- <a asp-controller="Res" asp-action="Index" class="a-clean">Ir a Reses →</a>
+ <strong>Información:</strong> Las ventas se registran automáticamente desde las secciones de Reses y Productos Derivados.
+ <a asp-controller="ProductoDerivado" asp-action="Index" class="a-clean">Ir a Productos Derivados →</a>
  </div>
 
  <!-- Tabla de ventas -->
@@ -83,45 +83,33 @@
  <thead>
  <tr>
  <th>Fecha</th>
- <th>Res Vendida</th>
+  <th>Vendible</th>
  <th>Tipo</th>
- <th>Peso</th>
- <th>Potrero Origen</th>
+  <th>Cantidad</th>
+  <th>Origen</th>
  <th>Monto</th>
- <th>Precio/kg</th>
+  <th>Precio unitario</th>
  </tr>
  </thead>
  <tbody>
  @foreach (var venta in Model)
  {
- var precioKg = venta.Res.Peso >0 ? (double)venta.Monto / venta.Res.Peso :0;
  <tr>
  <td>
  <strong>@venta.Fecha.ToString("dd/MM/yyyy")</strong><br/>
  <small class="text-muted">@venta.Fecha.ToString("HH:mm")</small>
  </td>
- <td class="fw-semibold">@venta.Res.Nombre</td>
+  <td class="fw-semibold">@venta.NombreVendible</td>
  <td>
- @if (venta.Res is Ternero)
- {
- <span class="aw-badge aw-badge-info">Ternero</span>
- }
- else if (venta.Res is Novillo)
- {
- <span class="aw-badge aw-badge-warning">Novillo</span>
- }
- else if (venta.Res is Cebon)
- {
- <span class="aw-badge aw-badge-danger">Cebón</span>
- }
- </td>
- <td>@venta.Res.Peso kg</td>
- <td>
- <span class="aw-badge aw-badge-success">@venta.Potrero.Identificacion</span>
+  <span class="aw-badge aw-badge-info">@venta.TipoVendible</span>
+  </td>
+  <td>@venta.Cantidad</td>
+  <td>
+  <span class="aw-badge aw-badge-success">@(string.IsNullOrWhiteSpace(venta.ReferenciaOrigen) ? "-" : venta.ReferenciaOrigen)</span>
  </td>
  <td class="fw-bold text-success">$@string.Format("{0:N0}", venta.Monto)</td>
  <td>
- <small class="text-muted">$@string.Format("{0:N0}", precioKg)/kg</small>
+  <small class="text-muted">$@string.Format("{0:N0}", venta.PrecioUnitarioVenta)</small>
  </td>
  </tr>
  }
@@ -173,9 +161,9 @@
  {
  <div class="alert alert-warning text-center py-5 aw-card border-0">
  <h3>No hay ventas registradas</h3>
- <p class="lead">Las ventas se registrarán automáticamente cuando vendas reses</p>
- <a asp-controller="Res" asp-action="Index" class="btn aw-btn aw-btn-secondary btn-lg rounded-pill px-5 mt-3">
- Ir a Gestión de Reses
+ <p class="lead">Las ventas se registrarán automáticamente cuando vendas reses o productos derivados</p>
+ <a asp-controller="ProductoDerivado" asp-action="Index" class="btn aw-btn aw-btn-secondary btn-lg rounded-pill px-5 mt-3">
+ Ir a Productos Derivados
  </a>
  </div>
  }

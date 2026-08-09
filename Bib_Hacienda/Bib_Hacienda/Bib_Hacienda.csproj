@@ -108,8 +108,13 @@
     <Compile Include="Clases\CreacionUsuario.cs" />
     <Compile Include="Clases\Hacienda.cs" />
     <Compile Include="Clases\InicializacionUsuarios.cs" />
+    <Compile Include="Clases\Carne.cs" />
+    <Compile Include="Clases\InventarioProductosDerivados.cs" />
+    <Compile Include="Clases\Lacteo.cs" />
     <Compile Include="Clases\Novillo.cs" />
+    <Compile Include="Clases\Piel.cs" />
     <Compile Include="Clases\Potrero.cs" />
+    <Compile Include="Clases\ProductoDerivado.cs" />
     <Compile Include="Clases\RegistroUsuarios.cs" />
     <Compile Include="Clases\Res.cs" />
     <Compile Include="Clases\Ternero.cs" />
@@ -138,6 +143,7 @@
     <Compile Include="Interfaces\ICargaUsuarios.cs" />
     <Compile Include="Interfaces\IActualizacionInventarioVacunas.cs" />
     <Compile Include="Interfaces\IActualizacionHistorialVacunacion.cs" />
+    <Compile Include="Interfaces\IActualizacionProductosDerivados.cs" />
     <Compile Include="Interfaces\IReglasAutorizacionRol.cs" />
     <Compile Include="Interfaces\IGuardadoUsuarios.cs" />
     <Compile Include="Interfaces\ICreacionVacunaBacteriana.cs" />
@@ -162,6 +168,7 @@
     <Compile Include="Interfaces\INotificadorPotreroMitad.cs" />
     <Compile Include="Interfaces\IReglasVacunacionRes.cs" />
     <Compile Include="Interfaces\IInventarioVacunas.cs" />
+    <Compile Include="Interfaces\IInventarioProductosDerivados.cs" />
     <Compile Include="Interfaces\IEstadoVentas.cs" />
     <Compile Include="Interfaces\IRegistroVenta.cs" />
     <Compile Include="Interfaces\IVacunacion.cs" />
@@ -170,6 +177,8 @@
     <Compile Include="Interfaces\ITiposPotreroDisponibles.cs" />
     <Compile Include="Interfaces\IValidacionCredenciales.cs" />
     <Compile Include="Interfaces\IVentaRes.cs" />
+    <Compile Include="Interfaces\IVendible.cs" />
+    <Compile Include="Interfaces\IVentaProductoDerivado.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Reglas\ReglaPotrero.cs" />
     <Compile Include="Reglas\ReglaRes.cs" />

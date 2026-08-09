@@ -1,0 +1,3 @@
+Lacteo|L001|Leche|97|4000
+Carne|C001|Carne bovina|50|20000
+Piel|P001|Piel bovina|20|30000

@@ -20,14 +20,14 @@ namespace p_mvcHacienda
             // Add services to the container.
             builder.Services.AddControllersWithViews();
 
-            // --- Configuraci髇 de Autenticaci髇 por Cookies ---
+            // --- Configuraci贸n de Autenticaci贸n por Cookies ---
             builder.Services.AddAuthentication("CookieAuth")
                 .AddCookie("CookieAuth", options =>
                 {
                     options.Cookie.Name = "HaciendaSoft.Auth";
-                    options.LoginPath = "/Account/Login"; // P醙ina de login
+                    options.LoginPath = "/Account/Login"; // P谩gina de login
                     options.AccessDeniedPath = "/Account/AccessDenied";
-                    options.ExpireTimeSpan = TimeSpan.FromMinutes(30); // Duraci髇 de la sesi髇
+                    options.ExpireTimeSpan = TimeSpan.FromMinutes(30); // Duraci贸n de la sesi贸n
                 });
 
             // Agregar HttpContextAccessor
@@ -37,6 +37,24 @@ namespace p_mvcHacienda
             builder.Services.AddSingleton<IValidadoresGuardado, ValidadoresPersistenciaInterceptados>();
             builder.Services.AddSingleton<IResultadoValidacion, ResultadoValidacionHttpContext>();
             builder.Services.AddSingleton<IValidador<Usuario>, ValidadorDatosRequeridosUsuario>();
+
+            var creadoresProductosDerivados = new Dictionary<string, Func<string, string, uint, uint, ProductoDerivado>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Lacteo"] = (codigo, nombre, existencia, precioUnitario) => new Lacteo(codigo, nombre, existencia, precioUnitario),
+                ["Carne"] = (codigo, nombre, existencia, precioUnitario) => new Carne(codigo, nombre, existencia, precioUnitario),
+                ["Piel"] = (codigo, nombre, existencia, precioUnitario) => new Piel(codigo, nombre, existencia, precioUnitario)
+            };
+            builder.Services.AddSingleton<IReadOnlyDictionary<string, Func<string, string, uint, uint, ProductoDerivado>>>(creadoresProductosDerivados);
+            builder.Services.AddSingleton<PersistenciaProductosDerivados>();
+            builder.Services.AddSingleton<InventarioProductosDerivados>(sp =>
+            {
+                var persistenciaProductos = sp.GetRequiredService<PersistenciaProductosDerivados>();
+                return new InventarioProductosDerivados(persistenciaProductos.CargarProductosDerivados());
+            });
+            builder.Services.AddSingleton<IInventarioProductosDerivados>(sp =>
+                sp.GetRequiredService<InventarioProductosDerivados>());
+            builder.Services.AddSingleton<IActualizacionProductosDerivados>(sp =>
+                sp.GetRequiredService<PersistenciaProductosDerivados>());
 
             IReglaEdadRes reglaEdadTernero = new ReglaEdadTernero();
             IReglaEdadRes reglaEdadCebon = new ReglaEdadCebon();
@@ -211,6 +229,8 @@ namespace p_mvcHacienda
             builder.Services.AddSingleton<VentaService>();
             builder.Services.AddSingleton<IVentaRes>(sp =>
                 sp.GetRequiredService<VentaService>());
+            builder.Services.AddSingleton<IVentaProductoDerivado>(sp =>
+                sp.GetRequiredService<VentaService>());
             builder.Services.AddSingleton<UsuariosRegistradosHacienda>(sp =>
             {
                 var cargaUsuarios = sp.GetRequiredService<ICargaUsuarios>();
@@ -242,7 +262,7 @@ namespace p_mvcHacienda
 
             app.UseRouting();
 
-            // --- Habilitar Autenticaci髇 y Autorizaci髇 ---
+            // --- Habilitar Autenticaci贸n y Autorizaci贸n ---
             app.UseAuthentication();
             app.UseAuthorization();
 

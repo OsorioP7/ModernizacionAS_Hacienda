@@ -12,7 +12,8 @@ namespace Bib_Hacienda.Clases.Validaciones
     {
         public virtual bool ValidarVenta(Venta venta)
         {
-            if (venta == null || venta.Potrero == null || venta.Res == null || venta.Monto <= 0)
+            if (venta == null || string.IsNullOrWhiteSpace(venta.NombreVendible) ||
+                string.IsNullOrWhiteSpace(venta.TipoVendible) || venta.Monto <= 0)
             {
                 return false;
             }

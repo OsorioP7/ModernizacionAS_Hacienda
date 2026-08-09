@@ -1,0 +1,87 @@
+@using Bib_Hacienda.Clases
+@model IReadOnlyCollection<ProductoDerivado>
+
+@{
+    ViewData["Title"] = "Productos Derivados";
+}
+
+<div class="container mt-4">
+    <div class="aw-page-header mb-4">
+        <h1 class="display-6 fw-bold mb-1" style="color: var(--aw-text);">
+            <span class="material-icons-outlined" style="vertical-align: sub;">inventory_2</span>
+            Productos Derivados
+        </h1>
+        <p class="text-muted mb-0">Consulta y vende lácteos, carne y piel</p>
+    </div>
+
+    @if (TempData["Mensaje"] != null)
+    {
+        <div class="alert alert-@TempData["TipoMensaje"] alert-dismissible fade show" role="alert">
+            <strong>@TempData["Mensaje"]</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+        </div>
+    }
+
+    @if (Model != null && Model.Any())
+    {
+        <div class="aw-card mt-3 aw-reveal">
+            <div class="p-3">
+                <div class="table-responsive">
+                    <table class="table table-hover aw-table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Tipo</th>
+                                <th>Existencia</th>
+                                <th>Unidad</th>
+                                <th>Precio unitario</th>
+                                <th>Cantidad</th>
+                                <th class="text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var producto in Model)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">@producto.Codigo</td>
+                                    <td>@producto.Nombre</td>
+                                    <td><span class="aw-badge aw-badge-info">@producto.TipoProducto</span></td>
+                                    <td>@producto.Existencia</td>
+                                    <td>@producto.UnidadMedida</td>
+                                    <td class="fw-semibold">$@string.Format("{0:N0}", producto.PrecioUnitario)</td>
+                                    <td>
+                                        <form asp-controller="ProductoDerivado" asp-action="Vender" method="post" id="venta-@producto.Codigo">
+                                            <input type="hidden" name="codigo" value="@producto.Codigo" />
+                                            <input type="number" name="cantidad" class="form-control form-control-sm" min="1" max="@producto.Existencia" required aria-label="Cantidad de @producto.Nombre" style="width: 90px;" />
+                                        </form>
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="submit" form="venta-@producto.Codigo" class="btn btn-sm aw-btn aw-btn-primary">
+                                            <span class="material-icons-outlined" style="font-size: 1rem; vertical-align: sub;">paid</span>
+                                            Vender
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning text-center py-5 aw-card border-0 aw-reveal">
+            <h3>No hay productos derivados disponibles.</h3>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        setTimeout(function () {
+            $('.alert-dismissible').alert('close');
+        }, 15000);
+    </script>
+}

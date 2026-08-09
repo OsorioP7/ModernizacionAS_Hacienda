@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Bib_Hacienda.Clases
 {
-    public abstract class Res
+    public abstract class Res : IVendible
     {
 
         //Atributos
@@ -59,5 +59,6 @@ namespace Bib_Hacienda.Clases
         public uint Peso { get => peso; set => peso = value; }
         public IReglaPesoRes ReglaPeso { get => regla_peso; }
         public abstract string TipoRes { get; }
+        public string TipoVendible => TipoRes;
     }
 }
