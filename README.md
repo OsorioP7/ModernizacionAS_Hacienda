@@ -35,4 +35,4 @@ Una vez iniciado, abrir en el navegador la dirección indicada por la consola.
 
 Video de sustentación
 
-Enlace al video:
+Enlace al video: https://drive.google.com/file/d/1mE2mx6BFlLwKCxfXygf5MZ-TuR6pFBY3/view?usp=drive_link
